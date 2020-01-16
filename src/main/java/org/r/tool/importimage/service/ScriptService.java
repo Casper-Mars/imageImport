@@ -63,16 +63,16 @@ public class ScriptService {
             log.info("运行: " + sh);
             Process process = runtime.exec(sh);
             //新启两个线程
-            new DealProcessSream(process.getInputStream()).start();
-            new DealProcessSream(process.getErrorStream()).start();
-//            String s = StreamUtils.copyToString(process.getInputStream(), Charset.defaultCharset());
-//            String s2 = StreamUtils.copyToString(process.getErrorStream(), Charset.defaultCharset());
-//            if(!StringUtils.isEmpty(s)){
-//                log.info(s);
-//            }
-//            if(!StringUtils.isEmpty(s2)){
-//                log.error(s2);
-//            }
+//            new DealProcessSream(process.getInputStream()).start();
+//            new DealProcessSream(process.getErrorStream()).start();
+            String s = StreamUtils.copyToString(process.getInputStream(), Charset.defaultCharset());
+            String s2 = StreamUtils.copyToString(process.getErrorStream(), Charset.defaultCharset());
+            if(!StringUtils.isEmpty(s)){
+                log.info(s);
+            }
+            if(!StringUtils.isEmpty(s2)){
+                log.error(s2);
+            }
             process.waitFor();
             log.info("app exit with " + process.exitValue());
         } catch (InterruptedException | IOException e) {
