@@ -13,17 +13,15 @@ public class ImportService {
 
     public void importNormal(MultipartFile file , String mode){
 
-
-
-
-
-
-
-
     }
 
 
     public void importDetail(MultipartFile file){
+
+
+
+
+
 
     }
 
