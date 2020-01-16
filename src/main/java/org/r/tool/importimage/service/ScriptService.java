@@ -1,10 +1,12 @@
 package org.r.tool.importimage.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.r.tool.importimage.thread.DealProcessSream;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
+import org.springframework.util.StringUtils;
 
 import java.io.*;
 import java.nio.charset.Charset;
@@ -23,7 +25,7 @@ public class ScriptService {
     private String SCRIPT_PATH;
 
 
-    @Async
+
     public void runSpy(String path, String filename, String url) {
         String targetPath = path + File.separator + filename;
         String sh = String.format("python3 %s --targetPath='%s' --url='%s'", SCRIPT_PATH + File.separator + "GetImage.py", targetPath, url);
@@ -54,19 +56,25 @@ public class ScriptService {
     }
 
 
-    private String runScript(String sh) {
+    public void runScript(String sh) {
 
         try {
             Runtime runtime = Runtime.getRuntime();
             log.info("运行: " + sh);
             Process process = runtime.exec(sh);
-            String s = StreamUtils.copyToString(process.getInputStream(), Charset.defaultCharset());
-            String s2 = StreamUtils.copyToString(process.getErrorStream(), Charset.defaultCharset());
-            log.info(s);
-            log.error(s2);
+            //新启两个线程
+            new DealProcessSream(process.getInputStream()).start();
+            new DealProcessSream(process.getErrorStream()).start();
+//            String s = StreamUtils.copyToString(process.getInputStream(), Charset.defaultCharset());
+//            String s2 = StreamUtils.copyToString(process.getErrorStream(), Charset.defaultCharset());
+//            if(!StringUtils.isEmpty(s)){
+//                log.info(s);
+//            }
+//            if(!StringUtils.isEmpty(s2)){
+//                log.error(s2);
+//            }
             process.waitFor();
             log.info("app exit with " + process.exitValue());
-            return s;
         } catch (InterruptedException | IOException e) {
             e.printStackTrace();
             throw new RuntimeException("导入图片脚本运行出错");
@@ -152,10 +160,10 @@ public class ScriptService {
             zipOut = new ZipOutputStream(cos);
             String baseDir = "";
             compress(srcFile, zipOut, baseDir);
+
         } finally {
             if (null != zipOut) {
                 zipOut.close();
-                out = null;
             }
 
             if (null != out) {

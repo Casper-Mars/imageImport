@@ -1,5 +1,6 @@
 package org.r.tool.importimage.service;
 
+import lombok.extern.slf4j.Slf4j;
 import org.r.tool.importimage.util.IdTool;
 import org.r.tool.importimage.util.StreamTool;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +17,7 @@ import java.io.*;
  * @date 20-1-16 下午4:12
  **/
 @Service
+@Slf4j
 public class SpyImageService {
 
 
@@ -31,14 +33,16 @@ public class SpyImageService {
             name = String.valueOf(IdTool.next());
         }
         scriptService.runSpy(spyPath, name, url);
+        log.info("处理完爬取图片逻辑：" + name);
         return name;
     }
 
     public void downLoad(HttpServletResponse response, String filename) {
 
+        filename += ".zip";
         response.setContentType("application/octet-stream");
         response.addHeader("Content-Disposition", "attachment;fileName=" + filename);
-        filename = spyPath + File.separator + filename + ".zip";
+        filename = spyPath + File.separator + filename;
         File target = new File(filename);
         if (!target.exists()) {
             throw new RuntimeException("文件不存在");
