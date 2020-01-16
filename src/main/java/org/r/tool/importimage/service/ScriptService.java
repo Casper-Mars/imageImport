@@ -1,6 +1,7 @@
 package org.r.tool.importimage.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
@@ -16,11 +17,29 @@ public class ScriptService {
     public static final int MOD_FULL = 1;
     public static final int MOD_EXCEPT_DETAIL = 2;
     public static final String TMP_PATH = "/tmp";
-    public static final String SCRIPT_PATH = "/opt/share/git/image-import";
+
+
+    @Value("${file.script.path}")
+    private String SCRIPT_PATH;
+
+
+    @Async
+    public void runSpy(String path, String filename, String url) {
+        String targetPath = path + File.separator + filename;
+        String sh = String.format("python3 %s --targetPath='%s' --url='%s'", SCRIPT_PATH + File.separator + "GetImage.py", targetPath, url);
+        runScript(sh);
+        try {
+            compress(targetPath, targetPath + ".zip");
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException("压缩图片出错");
+        }
+    }
+
 
     @Async
     public void runImport(String zipPath, int mod) {
-        if (mod!=MOD_FULL && mod!=MOD_EXCEPT_DETAIL){
+        if (mod != MOD_FULL && mod != MOD_EXCEPT_DETAIL) {
             log.error("mod参数错误");
             return;
         }
@@ -29,10 +48,16 @@ public class ScriptService {
 
         decompressZip(zipPath, target);
 
-        Runtime runtime = Runtime.getRuntime();
         log.info("开始处理: " + zipPath);
+        String sh = "python3 " + SCRIPT_PATH + File.separator + "Main.py --base='" + target + "' --mod=" + mod;
+        runScript(sh);
+    }
+
+
+    private String runScript(String sh) {
+
         try {
-            String sh = "python3 "+SCRIPT_PATH+File.separator+"Main.py --base='"+target+"' --mod=" + mod;
+            Runtime runtime = Runtime.getRuntime();
             log.info("运行: " + sh);
             Process process = runtime.exec(sh);
             String s = StreamUtils.copyToString(process.getInputStream(), Charset.defaultCharset());
@@ -40,14 +65,17 @@ public class ScriptService {
             log.info(s);
             log.error(s2);
             process.waitFor();
-            log.info("app exit with "+process.exitValue());
+            log.info("app exit with " + process.exitValue());
+            return s;
         } catch (InterruptedException | IOException e) {
             e.printStackTrace();
+            throw new RuntimeException("导入图片脚本运行出错");
         }
     }
 
     /**
-     *  压缩文件夹
+     * 压缩文件夹
+     *
      * @param dirPath 文件夹路径
      * @param descDir 目标文件路径
      */
@@ -60,32 +88,33 @@ public class ScriptService {
     }
 
     /**
-     * 解压压缩文件
-     * @param zipPath 压缩文件路径
-     * @param descDir 目标目录
+     * 解压缩zip
+     *
+     * @param zipPath
+     * @param descDir
      */
-    public void decompressZip(String zipPath, String descDir) {
+    private void decompressZip(String zipPath, String descDir) {
         File zipFile = new File(zipPath);
         File pathFile = new File(descDir);
-        if(!pathFile.exists()){
+        if (!pathFile.exists()) {
             pathFile.mkdirs();
         }
         ZipFile zip = null;
         try {
             zip = new ZipFile(zipFile);
-            for(Enumeration entries = zip.entries(); entries.hasMoreElements();){
-                ZipEntry entry = (ZipEntry)entries.nextElement();
+            for (Enumeration entries = zip.entries(); entries.hasMoreElements(); ) {
+                ZipEntry entry = (ZipEntry) entries.nextElement();
                 String zipEntryName = entry.getName();
                 InputStream in = zip.getInputStream(entry);
                 //指定解压后的文件夹+当前zip文件的名称
-                String outPath = (descDir+zipEntryName).replace("/", File.separator);
+                String outPath = (descDir + zipEntryName).replace("/", File.separator);
                 //判断路径是否存在,不存在则创建文件路径
                 File file = new File(outPath.substring(0, outPath.lastIndexOf(File.separator)));
-                if(!file.exists()){
+                if (!file.exists()) {
                     file.mkdirs();
                 }
                 //判断文件全路径是否为文件夹,如果是上面已经上传,不需要解压
-                if(new File(outPath).isDirectory()){
+                if (new File(outPath).isDirectory()) {
                     continue;
                 }
                 //保存文件路径信息（可利用md5.zip名称的唯一性，来判断是否已经解压）
@@ -93,8 +122,8 @@ public class ScriptService {
                 OutputStream out = new FileOutputStream(outPath);
                 byte[] buf1 = new byte[2048];
                 int len;
-                while((len=in.read(buf1))>0){
-                    out.write(buf1,0,len);
+                while ((len = in.read(buf1)) > 0) {
+                    out.write(buf1, 0, len);
                 }
                 in.close();
                 out.close();
@@ -108,7 +137,7 @@ public class ScriptService {
 
     static final int BUFFER = 8192;
 
-    private void compress(String srcPath , String dstPath) throws IOException{
+    private void compress(String srcPath, String dstPath) throws IOException {
         File srcFile = new File(srcPath);
         File dstFile = new File(dstPath);
         if (!srcFile.exists()) {
@@ -119,24 +148,23 @@ public class ScriptService {
         ZipOutputStream zipOut = null;
         try {
             out = new FileOutputStream(dstFile);
-            CheckedOutputStream cos = new CheckedOutputStream(out,new CRC32());
+            CheckedOutputStream cos = new CheckedOutputStream(out, new CRC32());
             zipOut = new ZipOutputStream(cos);
             String baseDir = "";
             compress(srcFile, zipOut, baseDir);
-        }
-        finally {
-            if(null != zipOut){
+        } finally {
+            if (null != zipOut) {
                 zipOut.close();
                 out = null;
             }
 
-            if(null != out){
+            if (null != out) {
                 out.close();
             }
         }
     }
 
-    private void compress(File file, ZipOutputStream zipOut, String baseDir) throws IOException{
+    private void compress(File file, ZipOutputStream zipOut, String baseDir) throws IOException {
         if (file.isDirectory()) {
             compressDirectory(file, zipOut, baseDir);
         } else {
@@ -144,17 +172,21 @@ public class ScriptService {
         }
     }
 
-    /** 压缩一个目录 */
-    private void compressDirectory(File dir, ZipOutputStream zipOut, String baseDir) throws IOException{
+    /**
+     * 压缩一个目录
+     */
+    private void compressDirectory(File dir, ZipOutputStream zipOut, String baseDir) throws IOException {
         File[] files = dir.listFiles();
         for (int i = 0; i < files.length; i++) {
             compress(files[i], zipOut, baseDir + dir.getName() + "/");
         }
     }
 
-    /** 压缩一个文件 */
-    private void compressFile(File file, ZipOutputStream zipOut, String baseDir)  throws IOException{
-        if (!file.exists()){
+    /**
+     * 压缩一个文件
+     */
+    private void compressFile(File file, ZipOutputStream zipOut, String baseDir) throws IOException {
+        if (!file.exists()) {
             return;
         }
 
@@ -169,8 +201,8 @@ public class ScriptService {
                 zipOut.write(data, 0, count);
             }
 
-        }finally {
-            if(null != bis){
+        } finally {
+            if (null != bis) {
                 bis.close();
             }
         }
